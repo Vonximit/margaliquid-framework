@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explorador Vibe v0.4 - PiOnda™</title>
+    <style>
+        :root {
+            --color-resonante: #ff4db8;
+            --panel: #130e24;
+            --bg: #0f0b1d;
+            --ink: #e6e6fa;
+            --line: #4a2c7d;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            background: linear-gradient(135deg, var(--bg), #2a1b3d);
+            color: var(--ink);
+            font-family: 'Courier New', monospace;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+        
+        .vibe-header {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-bottom: 2px solid var(--color-resonante);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(45deg, #ff4db8, #9c27b0, #03a9f4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: resonance 6s infinite alternate;
+            margin-bottom: 5px;
+        }
+        
+        .tagline {
+            color: #a394de;
+            font-style: italic;
+        }
+        
+        .container {
+            display: flex;
+            min-height: calc(100vh - 120px);
+        }
+        
+        .sidebar {
+            width: 300px;
+            background: var(--panel);
+            background: color-mix(in srgb, var(--panel) 85%, #000 15%);
+            padding: 20px;
+            border-right: 1px solid var(--line);
+            box-shadow: 0 0 15px rgba(156, 39, 176, 0.4);
+            overflow-y: auto;
+        }
+
+        .mc-list {
+            list-style: none;
+            margin: 16px 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .mc-file {
+            appearance: none;
+            background: rgba(60, 30, 90, 0.6);
+            border: 1px solid #8e57c5;
+            border-radius: 10px;
+            padding: 12px 14px;
+            text-align: left;
+            transition: all 0.25s ease;
+            width: 100%;
+            display: block;
+            color: inherit;
+        }
+
+        .mc-file:hover,
+        .mc-file:focus-visible {
+            background: rgba(90, 50, 130, 0.8);
+            transform: translateX(4px);
+            outline: none;
+        }
+        
+        .main {
+            flex: 1;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .viewer {
+            position: relative;
+            width: min(980px, 92%);
+            min-height: 420px;
+            border: 2px solid var(--color-resonante);
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 18px;
+            background: rgba(10, 5, 25, 0.7);
+            box-shadow: 0 0 30px rgba(255, 77, 184, 0.5);
+            overflow: hidden;
+        }
+        
+        .vibe-element {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-left: 4px solid var(--bar, #9c27b0);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .vibe-element:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateX(2px);
+        }
+        
+        .vibe-circle {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.7;
+            mix-blend-mode: screen;
+            animation: pulse 3s infinite alternate;
+        }
+        
+        #vibe-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .status {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            text-align: center;
+            border-top: 1px solid var(--line);
+            font-size: 0.9rem;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        button {
+            font-family: inherit;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: inherit;
+        }
+
+        .controls button,
+        .freq-row button {
+            background: linear-gradient(45deg, #ff4db8, #9c27b0);
+            border: none;
+            border-radius: 20px;
+            padding: 10px 16px;
+            color: white;
+            transition: all 0.25s ease;
+        }
+
+        .controls button:hover,
+        .controls button:focus-visible,
+        .freq-row button:hover,
+        .freq-row button:focus-visible {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(156, 39, 176, 0.4);
+            outline: none;
+        }
+        
+        .freq-row {
+            display: flex;
+            gap: 8px;
+            margin: 12px 0;
+            flex-wrap: wrap;
+        }
+        
+        .orbe {
+            position: absolute;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #fff8, transparent 60%),
+                        radial-gradient(circle at 70% 70%, currentColor 0, transparent 60%);
+            box-shadow: 0 0 30px currentColor;
+            mix-blend-mode: screen;
+            opacity: 0.85;
+            pointer-events: auto;
+            animation: orbFloat 6s ease-in-out infinite;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .orbe:hover {
+            transform: translate(-50%, -50%) scale(1.1);
+            opacity: 1;
+        }
+        
+        @keyframes orbFloat {
+            0% { transform: translate(-50%, -50%) translateY(-6px); }
+            50% { transform: translate(-50%, -50%) translateY(6px); }
+            100% { transform: translate(-50%, -50%) translateY(-6px); }
+        }
+        
+        .texto-flotante {
+            position: absolute;
+            pointer-events: none;
+            white-space: nowrap;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6), 0 0 16px currentColor;
+            animation: floatY 8s ease-in-out infinite;
+            font-weight: 300;
+        }
+        
+        @keyframes floatY {
+            0% { transform: translateY(-6px); opacity: 0.8; }
+            50% { transform: translateY(6px); opacity: 1; }
+            100% { transform: translateY(-6px); opacity: 0.8; }
+        }
+        
+        .portal-corazon::before,
+        .portal-infinito::before,
+        .portal-tiempo::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            mix-blend-mode: screen;
+            border-radius: 16px;
+        }
+        
+        .portal-corazon::before {
+            background: radial-gradient(60% 60% at 50% 50%, rgba(255, 77, 184, 0.2), transparent 70%);
+            animation: heartbeat 2s ease-in-out infinite;
+        }
+        
+        .portal-infinito::before {
+            background: radial-gradient(40% 60% at 30% 50%, rgba(3, 169, 244, 0.2), transparent 70%),
+                        radial-gradient(40% 60% at 70% 50%, rgba(255, 77, 184, 0.2), transparent 70%);
+            animation: infinity 8s ease-in-out infinite;
+        }
+        
+        .portal-tiempo::before {
+            background: repeating-radial-gradient(circle at 50% 50%, rgba(156, 39, 176, 0.13) 0 8px, transparent 8px 16px);
+            animation: timeWarp 4s linear infinite;
+        }
+        
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        @keyframes infinity {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes timeWarp {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.25; }
+            100% { transform: scale(1.18); opacity: 0.6; }
+        }
+        
+        @keyframes resonance {
+            from { filter: hue-rotate(0deg); }
+            to { filter: hue-rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--line);
+            }
+
+            .logo {
+                font-size: 2rem;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="vibe-header">
+        <div class="logo">Explorador Vibe v0.4</div>
+        <div class="tagline">Renderizando frecuencias, no solo píxeles</div>
+    </header>
+
+    <section class="container">
+        <aside class="sidebar" aria-label="Selector de archivos .mc">
+            <h2>Archivos .mc</h2>
+            <ul class="mc-list">
+                <li>
+                    <button type="button" class="mc-file" data-file="vibes.mc">
+                        <strong>vibes.mc</strong> — Página de bienvenida
+                    </button>
+                </li>
+                <li>
+                    <button type="button" class="mc-file" data-file="resonancia.mc">
+                        <strong>resonancia.mc</strong> — Flujo resonante
+                    </button>
+                </li>
+                <li>
+                    <button type="button" class="mc-file" data-file="frecuencias.mc">
+                        <strong>frecuencias.mc</strong> — Demo de audio
+                    </button>
+                </li>
+                <li>
+                    <button type="button" class="mc-file" data-file="meditacion_v04.mc">
+                        <strong>meditacion_v04.mc</strong> — ✨ v0.4 demo
+                    </button>
+                </li>
+            </ul>
+
+            <div class="controls">
+                <button type="button" data-action="vibe-mode">Modo Vibe Puro</button>
+                <button type="button" data-action="compat-mode">Modo Compatibilidad</button>
+                <button type="button" data-action="start-audio">🔊 Iniciar Audio</button>
+            </div>
+
+            <div style="margin-top: 12px;">
+                Frecuencia actual: <b id="current-freq">—</b>
+            </div>
+
+            <div class="freq-row" role="group" aria-label="Frecuencias rápidas">
+                <button type="button" data-frequency="174">174Hz</button>
+                <button type="button" data-frequency="285">285Hz</button>
+                <button type="button" data-frequency="432">432Hz</button>
+                <button type="button" data-frequency="528">528Hz</button>
+                <button type="button" data-frequency="639">639Hz</button>
+                <button type="button" data-frequency="963">963Hz</button>
+            </div>
+        </aside>
+
+        <main class="main">
+            <div class="viewer" id="viewer">
+                <canvas id="vibe-canvas" aria-hidden="true"></canvas>
+                <h2>Bienvenida al Explorador Vibe v0.4</h2>
+                <p>Carga un archivo .mc desde el panel izquierdo para experimentar la resonancia completa.</p>
+                
+                <div class="vibe-element" style="--bar: #ffeb3b">
+                    <strong>Función resonante:</strong> activarCampana(963Hz)
+                </div>
+                
+                <p style="margin-top: 20px; opacity: 0.8;">
+                    🆕 <strong>Nuevas características v0.4:</strong><br>
+                    • Orbes de energía interactivos<br>
+                    • Sistema de pulsos rítmicos<br>
+                    • Textos flotantes vibratorios<br>
+                    • Portales dimensionales<br>
+                </p>
+            </div>
+        </main>
+    </section>
+
+    <footer class="status">
+        Estado: <span id="status" role="status" aria-live="polite">Listo — Carga un archivo .mc</span>
+    </footer>
+
+    <script>
+        const mcSamples = {
+            'vibes.mc': `<!DOCTYPE mc>
+<vibe titulo="Página de Bienvenida Vibe" frecuencia="432" color="#ff4db8" intencion="0.7">
+  <heading>Bienvenida a tu Realidad Expandida</heading>
+  <text>Esta página vibra en armonía con tu frecuencia esencial.</text>
+  <campana tono="432"/>
+  <color-layer color="#ff4db8" intensidad="0.7"/>
+  <espiral color="#9c27b0" radio="120" velocidad="0.7"/>
+</vibe>`,
+            'resonancia.mc': `<!DOCTYPE mc>
+<vibe titulo="Flujo Resonante" frecuencia="639" color="#03a9f4" intencion="0.8">
+  <heading>Flujo de Conciencia Expandida</heading>
+  <text>Siente cómo las frecuencias interactúan con tu campo energético.</text>
+  <campana tono="639"/>
+  <color-layer color="#03a9f4" intensidad="0.8"/>
+  <color-layer color="#9c27b0" intensidad="0.5"/>
+  <espiral color="#03a9f4" radio="160" velocidad="1.1"/>
+</vibe>`,
+            'frecuencias.mc': `<!DOCTYPE mc>
+<vibe titulo="Demo de Frecuencias Sagradas" frecuencia="963" color="#4caf50" intencion="0.9">
+  <heading>Armonización con Frecuencias</heading>
+  <text>Cada tono resuena con diferentes centros energéticos.</text>
+  <campana tono="174"/>
+  <campana tono="285"/>
+  <campana tono="963"/>
+  <color-layer color="#4caf50" intensidad="0.85"/>
+  <espiral color="#4caf50" radio="140" velocidad="0.9"/>
+</vibe>`,
+            'meditacion_v04.mc': `<!DOCTYPE mc>
+<vibe titulo="Meditación Sonora" frecuencia="528" color="#4caf50" intencion="0.9" portal="corazón">
+  <heading>Sanación con Frecuencias Sagradas</heading>
+  <text>Siente cómo cada tono resuena con tus centros energéticos.</text>
+  <campana tono="174" duracion="2.5"/>
+  <campana tono="285" armonicos="2"/>
+  <campana tono="528" armonicos="3"/>
+  <orbe diametro="180" textura="fluido" alineacion="corazón" resonancia="0.9"/>
+  <espiral color="#4caf50" radio="200" velocidad="0.8" vueltas="5"/>
+  <pulso ritmo="0.6" intensidad="0.7" patron="alternante"/>
+  <texto-flotante contenido="Respira y permite" tamaño="28" velocidad="0.6"/>
+  <texto-flotante contenido="la vibración fluir" tamaño="24" velocidad="0.9"/>
+</vibe>`
+        };
+
+        function parseMC(mcText) {
+            const xml = new DOMParser().parseFromString(mcText, "application/xml");
+            const err = xml.querySelector("parsererror");
+            if (err) throw new Error("Error al parsear .mc");
+
+            const vibe = xml.querySelector("vibe");
+            const title = vibe.getAttribute("titulo") || "Documento .mc";
+            const frequency = Number(vibe.getAttribute("frecuencia") || 432);
+            const color = vibe.getAttribute("color") || "#ff4db8";
+            const intencion = Number(vibe.getAttribute("intencion") || 0.7);
+            const portal = (vibe.getAttribute("portal") || "").toLowerCase();
+
+            const elements = [];
+            
+            xml.querySelectorAll("heading").forEach(n => elements.push({type: "heading", content: n.textContent.trim()}));
+            xml.querySelectorAll("text").forEach(n => elements.push({type: "text", content: n.textContent.trim()}));
+            xml.querySelectorAll("campana").forEach(n => elements.push({
+                type: "campana", 
+                frequency: Number(n.getAttribute("tono")), 
+                dur: Number(n.getAttribute("duracion") || 1.25), 
+                armonicos: Number(n.getAttribute("armonicos") || 1)
+            }));
+            xml.querySelectorAll("color-layer").forEach(n => elements.push({
+                type: "color-layer", 
+                color: n.getAttribute("color"), 
+                intensity: Number(n.getAttribute("intensidad") || 0.7)
+            }));
+            xml.querySelectorAll("espiral").forEach(n => elements.push({
+                type: "espiral", 
+                color: n.getAttribute("color") || color, 
+                radio: Number(n.getAttribute("radio") || 120), 
+                velocidad: Number(n.getAttribute("velocidad") || 0.8), 
+                vueltas: Number(n.getAttribute("vueltas") || 4)
+            }));
+
+            xml.querySelectorAll("orbe").forEach(n => elements.push({
+                type: "orbe",
+                diametro: Number(n.getAttribute("diametro") || 120),
+                textura: (n.getAttribute("textura") || "liso").toLowerCase(),
+                resonancia: Number(n.getAttribute("resonancia") || 0.7),
+                alineacion: (n.getAttribute("alineacion") || "mente").toLowerCase()
+            }));
+            
+            xml.querySelectorAll("pulso").forEach(n => elements.push({
+                type: "pulso",
+                ritmo: Number(n.getAttribute("ritmo") || 0.8),
+                intensidad: Number(n.getAttribute("intensidad") || 0.7),
+                patron: (n.getAttribute("patron") || "constante").toLowerCase()
+            }));
+            
+            xml.querySelectorAll("texto-flotante").forEach(n => elements.push({
+                type: "texto-flotante",
+                contenido: n.getAttribute("contenido") || n.textContent.trim(),
+                tamaño: Number(n.getAttribute("tamaño") || 24),
+                velocidad: Number(n.getAttribute("velocidad") || 0.7)
+            }));
+
+            return { title, frequency, color, intencion, portal, elements };
+        }
+
+        let audioContext = null;
+        let masterGain = null;
+        let audioEnabled = false;
+
+        function ensureAudio(fromUserGesture = false) {
+            if (!audioContext) {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    masterGain = audioContext.createGain();
+                    masterGain.gain.value = 0.18;
+                    masterGain.connect(audioContext.destination);
+                    audioEnabled = true;
+                    setStatus("Audio inicializado correctamente");
+                } catch (error) {
+                    setStatus("Error: Audio no disponible en este navegador");
+                    console.error("Error inicializando audio:", error);
+                }
+            } else if (fromUserGesture && audioContext.state === "suspended") {
+                audioContext.resume().then(() => {
+                    setStatus("Audio reactivado");
+                });
+            }
+        }
+
+        function playBell(frequency = 432, duration = 1.25) {
+            ensureAudio(true);
+            
+            if (!audioEnabled || !audioContext) {
+                setStatus("El audio no está disponible");
+                return;
+            }
+            
+            const now = audioContext.currentTime;
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.type = "sine";
+            oscillator.frequency.setValueAtTime(frequency, now);
+            
+            gainNode.gain.setValueAtTime(0.0001, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.9, now + 0.02);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(masterGain);
+            
+            oscillator.start(now);
+            oscillator.stop(now + duration + 0.02);
+            
+            updateVisualization(frequency);
+        }
+
+        let canvas = null;
+        let ctx = null;
+        let animationId = null;
+        let spirals = [];
+        let time = 0;
+        let canvasListenerRegistered = false;
+        
+        function setupCanvas() {
+            canvas = document.getElementById("vibe-canvas");
+            if (!canvas) {
+                ctx = null;
+                return;
+            }
+
+            ctx = canvas.getContext("2d");
+            resizeCanvas();
+
+            if (!canvasListenerRegistered) {
+                window.addEventListener("resize", resizeCanvas);
+                canvasListenerRegistered = true;
+            }
+            
+            if (!animationId) {
+                animate();
+            }
+        }
+        
+        function resizeCanvas() {
+            const viewer = document.getElementById("viewer");
+            if (!canvas || !viewer) return;
+            canvas.width = viewer.clientWidth;
+            canvas.height = viewer.clientHeight;
+        }
+        
+        function addSpiral(config = {}) {
+            spirals.push({
+                color: config.color || "#9c27b0",
+                radio: config.radio || 120,
+                velocidad: config.velocidad || 0.8
+            });
+        }
+        
+        function clearSpirals() {
+            spirals = [];
+            time = 0;
+        }
+        
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            if (!ctx || !canvas) return;
+            
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            ctx.fillStyle = "rgba(10, 5, 25, 0.2)";
+            ctx.fillRect(0, 0, width, height);
+            
+            time += 0.016;
+            
+            spirals.forEach(spiral => {
+                ctx.save();
+                ctx.translate(width / 2, height / 2);
+                ctx.rotate(time * 0.15 * spiral.velocidad);
+                
+                ctx.beginPath();
+                const turns = 4;
+                const steps = 450;
+                
+                for (let i = 0; i < steps; i++) {
+                    const progress = i / steps;
+                    const radius = progress * spiral.radio;
+                    const angle = turns * Math.PI * 2 * progress + time * 0.6 * spiral.velocidad;
+                    const x = radius * Math.cos(angle);
+                    const y = radius * Math.sin(angle);
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                
+                ctx.strokeStyle = spiral.color;
+                ctx.lineWidth = 1.6;
+                ctx.globalCompositeOperation = "lighter";
+                ctx.stroke();
+                ctx.restore();
+            });
+        }
+        
+        function updateVisualization(frequency) {
+            if (!canvas || !ctx) return;
+
+            const ripple = {
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                radius: 0,
+                maxRadius: Math.min(canvas.width, canvas.height) * 0.4,
+                color: `hsl(${(frequency % 360)}, 80%, 60%)`,
+                alpha: 0.8
+            };
+            
+            function drawRipple() {
+                if (!ctx) return;
+                
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${ripple.alpha * 0.6})`;
+                ctx.lineWidth = 2;
+                ctx.globalCompositeOperation = "lighter";
+                ctx.stroke();
+                ctx.restore();
+                
+                ripple.radius += 4;
+                ripple.alpha -= 0.02;
+                
+                if (ripple.radius < ripple.maxRadius && ripple.alpha > 0) {
+                    requestAnimationFrame(drawRipple);
+                }
+            }
+            
+            drawRipple();
+        }
+
+        let pulseTimers = [];
+        
+        function startPulse({ritmo = 0.8, intensidad = 0.7, patron = "constante"}) {
+            const baseMs = Math.max(ritmo, 0.1);
+            const interval = 1000 / baseMs;
+
+            let toggle = false;
+            const tick = () => {
+                let scale = 1;
+                if (patron === "alternante") {
+                    toggle = !toggle;
+                    scale = toggle ? 1 : intensidad;
+                }
+                if (patron === "caotico" || patron === "caótico") {
+                    scale = 0.5 + Math.random() * intensidad;
+                }
+                rippleCanvas(scale);
+            };
+            
+            tick();
+            const id = setInterval(tick, interval);
+            pulseTimers.push(id);
+        }
+        
+        function stopAllPulses() {
+            pulseTimers.forEach(id => clearInterval(id));
+            pulseTimers.length = 0;
+        }
+        
+        function rippleCanvas(scale = 1) {
+            if (!ctx || !canvas) return;
+            
+            const w = canvas.width;
+            const h = canvas.height;
+            
+            ctx.save();
+            ctx.translate(w / 2, h / 2);
+            ctx.beginPath();
+            ctx.arc(0, 0, Math.min(w, h) * 0.15 * scale, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+            ctx.lineWidth = 2;
+            ctx.globalCompositeOperation = "lighter";
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function setStatus(message) {
+            const statusEl = document.getElementById("status");
+            if (statusEl) {
+                statusEl.textContent = message;
+            }
+        }
+
+        function setCurrentFrequency(frequency) {
+            const freqEl = document.getElementById("current-freq");
+            if (freqEl) {
+                freqEl.textContent = `${frequency}Hz`;
+            }
+        }
+
+        function loadMCFile(filename) {
+            const mcContent = mcSamples[filename];
+            if (!mcContent) {
+                setStatus(`Error: Archivo ${filename} no encontrado`);
+                return;
+            }
+            
+            let parsedMC;
+            try {
+                parsedMC = parseMC(mcContent);
+            } catch (error) {
+                setStatus(`Error parsing ${filename}: ${error.message}`);
+                return;
+            }
+            
+            const viewer = document.getElementById("viewer");
+            viewer.classList.remove("portal-corazon", "portal-infinito", "portal-tiempo");
+            if (parsedMC.portal === "corazón" || parsedMC.portal === "corazon") {
+                viewer.classList.add("portal-corazon");
+            } else if (parsedMC.portal === "infinito") {
+                viewer.classList.add("portal-infinito");
+            } else if (parsedMC.portal === "tiempo") {
+                viewer.classList.add("portal-tiempo");
+            }
+            
+            viewer.innerHTML = '<canvas id="vibe-canvas" aria-hidden="true"></canvas>';
+            setupCanvas();
+            clearSpirals();
+            stopAllPulses();
+            
+            document.documentElement.style.setProperty('--color-resonante', parsedMC.color);
+            
+            const titleElement = document.createElement("h2");
+            titleElement.textContent = parsedMC.title;
+            viewer.appendChild(titleElement);
+
+            parsedMC.elements.forEach(element => {
+                switch (element.type) {
+                    case "heading": {
+                        const heading = document.createElement("h3");
+                        heading.textContent = element.content;
+                        viewer.appendChild(heading);
+                        break;
+                    }
+                    case "text": {
+                        const text = document.createElement("p");
+                        text.textContent = element.content;
+                        viewer.appendChild(text);
+                        break;
+                    }
+                    case "campana": {
+                        const bellElement = document.createElement("div");
+                        bellElement.className = "vibe-element";
+                        const hue = (element.frequency % 360);
+                        bellElement.style.setProperty("--bar", `hsl(${hue}, 85%, 60%)`);
+                        bellElement.innerHTML = `<strong>Función resonante:</strong> activarCampana(${element.frequency}Hz)`;
+                        bellElement.title = `Click para resonar ${element.frequency}Hz`;
+                        bellElement.addEventListener('click', () => activateBell(element.frequency));
+                        viewer.appendChild(bellElement);
+                        break;
+                    }
+                    case "color-layer": {
+                        const circle = document.createElement("div");
+                        circle.className = "vibe-circle";
+                        const size = element.intensity * 220 + 120;
+                        circle.style.width = `${size}px`;
+                        circle.style.height = `${size}px`;
+                        circle.style.background = element.color;
+                        circle.style.top = `${Math.random() * 70 + 15}%`;
+                        circle.style.left = `${Math.random() * 70 + 15}%`;
+                        circle.style.animationDuration = `${5 - element.intensity * 3}s`;
+                        viewer.appendChild(circle);
+                        break;
+                    }
+                    case "espiral": {
+                        addSpiral(element);
+                        break;
+                    }
+                    case "orbe": {
+                        const orb = document.createElement("div");
+                        orb.className = "orbe";
+                        const dimension = Math.max(element.diametro, 80);
+                        orb.style.width = `${dimension}px`;
+                        orb.style.height = `${dimension}px`;
+                        orb.style.color = parsedMC.color;
+                        orb.style.opacity = `${0.6 + element.resonancia * 0.4}`;
+                        const alignment = positionOrb(element.alineacion);
+                        orb.style.top = alignment.top;
+                        orb.style.left = alignment.left;
+                        orb.style.transform = 'translate(-50%, -50%)';
+                        orb.setAttribute('aria-label', 'Orbe resonante interactivo');
+                        orb.title = `Orbe ${element.textura} — resonancia ${element.resonancia}`;
+                        orb.addEventListener('click', () => {
+                            activateBell(parsedMC.frequency);
+                            setStatus(`Orbe alineado activó ${parsedMC.frequency}Hz`);
+                        });
+                        viewer.appendChild(orb);
+                        break;
+                    }
+                    case "pulso": {
+                        startPulse(element);
+                        break;
+                    }
+                    case "texto-flotante": {
+                        const floating = document.createElement("div");
+                        floating.className = "texto-flotante";
+                        floating.textContent = element.contenido;
+                        floating.style.fontSize = `${element.tamaño}px`;
+                        floating.style.animationDuration = `${6 / Math.max(element.velocidad, 0.2)}s`;
+                        floating.style.color = parsedMC.color;
+                        const offset = floatingPosition();
+                        floating.style.left = offset.left;
+                        floating.style.top = offset.top;
+                        viewer.appendChild(floating);
+                        break;
+                    }
+                    default:
+                        break;
+                }
+            });
+            
+            if (parsedMC.elements.every(element => element.type !== "espiral")) {
+                addSpiral({ color: parsedMC.color, radio: 140, velocidad: 0.9 });
+            }
+
+            setCurrentFrequency(parsedMC.frequency);
+            setStatus(`Archivo cargado: ${filename} — Resonancia ${parsedMC.frequency}Hz`);
+        }
+
+        function bindInterface() {
+            document.querySelectorAll('.mc-file[data-file]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const file = button.getAttribute('data-file');
+                    if (file) {
+                        loadMCFile(file);
+                    }
+                });
+            });
+
+            document.querySelectorAll('[data-frequency]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const value = Number(button.getAttribute('data-frequency'));
+                    if (!Number.isFinite(value)) return;
+                    activateBell(value);
+                });
+            });
+
+            document.querySelectorAll('[data-action]').forEach(button => {
+                const action = button.getAttribute('data-action');
+                switch (action) {
+                    case 'vibe-mode':
+                        button.addEventListener('click', activateVibeMode);
+                        break;
+                    case 'compat-mode':
+                        button.addEventListener('click', activateCompatibilityMode);
+                        break;
+                    case 'start-audio':
+                        button.addEventListener('click', () => ensureAudio(true));
+                        break;
+                    default:
+                        break;
+                }
+            });
+        }
+        
+        function positionOrb(alignment) {
+            switch (alignment) {
+                case 'corazón':
+                case 'corazon':
+                    return { top: '55%', left: '50%' };
+                case 'mente':
+                    return { top: '30%', left: '50%' };
+                case 'raiz':
+                case 'raíz':
+                    return { top: '75%', left: '50%' };
+                case 'aural':
+                    return { top: '20%', left: '30%' };
+                default:
+                    return { top: `${40 + Math.random() * 20}%`, left: `${40 + Math.random() * 20}%` };
+            }
+        }
+
+        function floatingPosition() {
+            return {
+                left: `${20 + Math.random() * 60}%`,
+                top: `${20 + Math.random() * 60}%`
+            };
+        }
+        
+        function activateBell(frequency) {
+            setCurrentFrequency(frequency);
+            playBell(frequency);
+            setStatus(`Activando frecuencia: ${frequency}Hz`);
+            
+            const viewer = document.getElementById('viewer');
+            const ripple = document.createElement('div');
+            Object.assign(ripple.style, {
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                width: '0px',
+                height: '0px',
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.18)',
+                transform: 'translate(-50%, -50%)',
+                transition: 'all 1.2s ease-out',
+                pointerEvents: 'none'
+            });
+            
+            viewer.appendChild(ripple);
+            
+            requestAnimationFrame(() => {
+                ripple.style.width = '520px';
+                ripple.style.height = '520px';
+                ripple.style.opacity = '0';
+            });
+            
+            setTimeout(() => {
+                if (ripple.parentNode) {
+                    ripple.parentNode.removeChild(ripple);
+                }
+            }, 1250);
+        }
+        
+        function activateVibeMode() {
+            document.body.style.animation = 'resonance 12s infinite linear';
+            setStatus('Modo Vibe Puro activado - Experimentando resonancia completa');
+        }
+        
+        function activateCompatibilityMode() {
+            document.body.style.animation = 'none';
+            setStatus('Modo Compatibilidad - Funciones vibe traducidas a estándares web');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setStatus('Explorador Vibe v0.4 listo - Carga un archivo .mc');
+            setupCanvas();
+            bindInterface();
+        });
+    </script>
+</body>
+</html>
