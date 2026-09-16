@@ -1,0 +1,19 @@
+{
+  "name": "margaliquid-framework",
+  "version": "0.2.0",
+  "description": "Runtime Canvas embebible de partículas interactivas y Web Component.",
+  "main": "marga-particles.js",
+  "files": [
+    "marga-particles.js",
+    "marga-particles-element.js",
+    "MARGA_PARTICLES.md",
+    "examples"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check marga-particles.js && node --check marga-particles-element.js"
+  },
+  "keywords": ["canvas", "particles", "web-component", "generative-art", "interactive"],
+  "author": "Margaret (Vonximit)",
+  "license": "UNLICENSED"
+}
