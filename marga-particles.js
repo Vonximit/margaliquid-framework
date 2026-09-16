@@ -1,6 +1,8 @@
 (function (global) {
   'use strict';
 
+  const VERSION = '0.2.0';
+
   const DEFAULTS = {
     width: '100%',
     height: '100%',
@@ -15,11 +17,62 @@
     centerX: 0.5,
     centerY: 0.5,
     maxRadius: 0.38,
+    maxDpr: 2,
+    respectReducedMotion: true,
     colors: ['#7dd3fc', '#a78bfa', '#f9a8d4', '#fcd34d', '#5eead4']
+  };
+
+  const NUMBER_LIMITS = {
+    particleCount: [1, 500],
+    pull: [0, 5],
+    swirl: [-3, 3],
+    friction: [0.8, 1],
+    breath: [0, 2],
+    centerX: [0, 1],
+    centerY: [0, 1],
+    maxRadius: [0.05, 1],
+    maxDpr: [1, 3]
   };
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
+  }
+
+  function normalizeColors(colors) {
+    if (!Array.isArray(colors)) return DEFAULTS.colors.slice();
+    const valid = colors
+      .map(color => String(color).trim())
+      .filter(color => /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color));
+    return valid.length ? valid : DEFAULTS.colors.slice();
+  }
+
+  function normalizeOptions(options) {
+    const input = options && typeof options === 'object' ? options : {};
+    const normalized = Object.assign({}, DEFAULTS);
+
+    for (const key of Object.keys(NUMBER_LIMITS)) {
+      const number = Number(input[key] ?? DEFAULTS[key]);
+      const fallback = DEFAULTS[key];
+      const [min, max] = NUMBER_LIMITS[key];
+      normalized[key] = Number.isFinite(number) ? clamp(number, min, max) : fallback;
+    }
+    normalized.particleCount = Math.round(normalized.particleCount);
+    normalized.width = typeof input.width === 'string' ? input.width : DEFAULTS.width;
+    normalized.height = typeof input.height === 'string' ? input.height : DEFAULTS.height;
+    normalized.background = typeof input.background === 'string'
+      ? input.background
+      : DEFAULTS.background;
+    normalized.interactive = input.interactive === undefined
+      ? DEFAULTS.interactive
+      : Boolean(input.interactive);
+    normalized.fieldVisible = input.fieldVisible === undefined
+      ? DEFAULTS.fieldVisible
+      : Boolean(input.fieldVisible);
+    normalized.respectReducedMotion = input.respectReducedMotion === undefined
+      ? DEFAULTS.respectReducedMotion
+      : Boolean(input.respectReducedMotion);
+    normalized.colors = normalizeColors(input.colors ?? DEFAULTS.colors);
+    return normalized;
   }
 
   function hexToHsl(hex) {
@@ -143,50 +196,81 @@
   class Engine {
     constructor(container, options) {
       this.container = container;
-      this.config = Object.assign({}, DEFAULTS, options || {});
+      this.config = normalizeOptions(options);
       this.palette = this.config.colors.map(hexToHsl);
       this.t = 0;
       this.particles = [];
       this.center = { x: 0, y: 0 };
 
+      this.initialStyles = {
+        position: this.container.style.position,
+        overflow: this.container.style.overflow,
+        background: this.container.style.background
+      };
       this.container.style.position = this.container.style.position || 'relative';
       this.container.style.overflow = this.container.style.overflow || 'hidden';
-      if (this.config.background !== 'transparent') {
-        this.container.style.background = this.config.background;
-      }
+      this.applyBackground();
 
-      this.canvas = document.createElement('canvas');
+      this.canvas = global.document.createElement('canvas');
+      this.canvas.setAttribute('aria-hidden', 'true');
+      this.canvas.setAttribute('role', 'presentation');
       this.canvas.style.display = 'block';
       this.canvas.style.width = this.config.width;
       this.canvas.style.height = this.config.height;
       this.canvas.style.position = 'absolute';
       this.canvas.style.inset = '0';
-      this.canvas.style.pointerEvents = this.config.interactive ? 'auto' : 'none';
       this.container.appendChild(this.canvas);
 
       this.ctx = this.canvas.getContext('2d');
 
       this.handleResize = this.resize.bind(this);
-      this.handleMouseMove = this.onMouseMove.bind(this);
-      this.handleClick = this.onClick.bind(this);
+      this.handlePointer = this.onPointer.bind(this);
+      this.handleVisibility = this.onVisibilityChange.bind(this);
+      this.handleAnimationFrame = this.animate.bind(this);
       this.raf = null;
       this.destroyed = false;
+      this.paused = true;
+      this.visibilityPaused = false;
 
       this.resize();
       this.reseed();
-      window.addEventListener('resize', this.handleResize);
-      if (this.config.interactive) {
-        this.canvas.addEventListener('mousemove', this.handleMouseMove);
-        this.canvas.addEventListener('click', this.handleClick);
+      global.addEventListener('resize', this.handleResize);
+      global.document.addEventListener('visibilitychange', this.handleVisibility);
+      this.configureInteraction();
+      this.resizeObserver = typeof global.ResizeObserver === 'function'
+        ? new global.ResizeObserver(this.handleResize)
+        : null;
+      if (this.resizeObserver) this.resizeObserver.observe(this.container);
+
+      const reduceMotion = this.config.respectReducedMotion
+        && typeof global.matchMedia === 'function'
+        && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion) {
+        this.drawFrame();
+      } else {
+        this.resume();
       }
-      this.animate();
+    }
+
+    applyBackground() {
+      this.container.style.background = this.config.background;
+    }
+
+    configureInteraction() {
+      this.canvas.removeEventListener('pointermove', this.handlePointer);
+      this.canvas.removeEventListener('pointerdown', this.handlePointer);
+      this.canvas.style.pointerEvents = this.config.interactive ? 'auto' : 'none';
+      if (this.config.interactive) {
+        this.canvas.addEventListener('pointermove', this.handlePointer);
+        this.canvas.addEventListener('pointerdown', this.handlePointer);
+      }
     }
 
     resize() {
       const rect = this.container.getBoundingClientRect();
       this.width = Math.max(1, rect.width || this.container.clientWidth || 600);
       this.height = Math.max(1, rect.height || this.container.clientHeight || 400);
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = Math.min(global.devicePixelRatio || 1, this.config.maxDpr);
       this.canvas.width = this.width * dpr;
       this.canvas.height = this.height * dpr;
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -201,16 +285,20 @@
       }
     }
 
-    onMouseMove(event) {
+    onPointer(event) {
       const rect = this.canvas.getBoundingClientRect();
       this.center.x = event.clientX - rect.left;
       this.center.y = event.clientY - rect.top;
     }
 
-    onClick(event) {
-      const rect = this.canvas.getBoundingClientRect();
-      this.center.x = event.clientX - rect.left;
-      this.center.y = event.clientY - rect.top;
+    onVisibilityChange() {
+      if (global.document.hidden && !this.paused) {
+        this.visibilityPaused = true;
+        this.pause();
+      } else if (!global.document.hidden && this.visibilityPaused) {
+        this.visibilityPaused = false;
+        this.resume();
+      }
     }
 
     drawField() {
@@ -245,8 +333,7 @@
       this.ctx.fillRect(0, 0, this.width, this.height);
     }
 
-    animate() {
-      if (this.destroyed) return;
+    drawFrame() {
       this.t++;
       this.ctx.clearRect(0, 0, this.width, this.height);
       this.drawMist();
@@ -256,34 +343,69 @@
         this.particles[i].update();
         this.particles[i].draw(this.ctx);
       }
+    }
 
-      this.raf = requestAnimationFrame(this.animate.bind(this));
+    animate() {
+      if (this.destroyed || this.paused) return;
+      this.drawFrame();
+      this.raf = global.requestAnimationFrame(this.handleAnimationFrame);
+    }
+
+    pause() {
+      if (this.destroyed || this.paused) return;
+      this.paused = true;
+      if (this.raf !== null) global.cancelAnimationFrame(this.raf);
+      this.raf = null;
+    }
+
+    resume() {
+      if (this.destroyed || !this.paused) return;
+      this.paused = false;
+      this.raf = global.requestAnimationFrame(this.handleAnimationFrame);
     }
 
     update(options) {
-      Object.assign(this.config, options || {});
-      if (options && options.colors) {
-        this.palette = this.config.colors.map(hexToHsl);
+      if (!options || typeof options !== 'object') return this;
+      const previous = this.config;
+      this.config = normalizeOptions(Object.assign({}, previous, options));
+
+      const colorsChanged = this.config.colors.join(',') !== previous.colors.join(',');
+      const countChanged = this.config.particleCount !== previous.particleCount;
+      if (colorsChanged) this.palette = this.config.colors.map(hexToHsl);
+      if (colorsChanged || countChanged) {
         this.reseed();
       }
-      if (options && typeof options.particleCount === 'number') {
-        this.reseed();
-      }
+      if (this.config.interactive !== previous.interactive) this.configureInteraction();
+      if (this.config.background !== previous.background) this.applyBackground();
+      if (this.config.width !== previous.width) this.canvas.style.width = this.config.width;
+      if (this.config.height !== previous.height) this.canvas.style.height = this.config.height;
+      this.resize();
+      if (this.paused) this.drawFrame();
+      return this;
     }
 
     destroy() {
+      if (this.destroyed) return;
       this.destroyed = true;
-      cancelAnimationFrame(this.raf);
-      window.removeEventListener('resize', this.handleResize);
-      this.canvas.removeEventListener('mousemove', this.handleMouseMove);
-      this.canvas.removeEventListener('click', this.handleClick);
+      if (this.raf !== null) global.cancelAnimationFrame(this.raf);
+      global.removeEventListener('resize', this.handleResize);
+      global.document.removeEventListener('visibilitychange', this.handleVisibility);
+      this.canvas.removeEventListener('pointermove', this.handlePointer);
+      this.canvas.removeEventListener('pointerdown', this.handlePointer);
+      if (this.resizeObserver) this.resizeObserver.disconnect();
       if (this.canvas.parentNode) this.canvas.parentNode.removeChild(this.canvas);
+      this.container.style.position = this.initialStyles.position;
+      this.container.style.overflow = this.initialStyles.overflow;
+      this.container.style.background = this.initialStyles.background;
     }
   }
 
   const api = {
+    version: VERSION,
+    defaults: Object.freeze(Object.assign({}, DEFAULTS, { colors: DEFAULTS.colors.slice() })),
+    normalizeOptions,
     mount(target, options) {
-      const container = typeof target === 'string' ? document.querySelector(target) : target;
+      const container = typeof target === 'string' ? global.document.querySelector(target) : target;
       if (!container) {
         throw new Error('MargaParticles: container not found');
       }
@@ -292,4 +414,5 @@
   };
 
   global.MargaParticles = api;
-})(window);
+  if (typeof module === 'object' && module.exports) module.exports = api;
+})(typeof window !== 'undefined' ? window : globalThis);
