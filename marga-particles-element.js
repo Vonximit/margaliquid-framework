@@ -18,7 +18,8 @@
         'center-x',
         'center-y',
         'colors',
-        'background'
+        'background',
+        'respect-reduced-motion'
       ];
     }
 
@@ -80,6 +81,7 @@
         centerX: this.readNumber('center-x', 0.5),
         centerY: this.readNumber('center-y', 0.5),
         background: this.getAttribute('background') || 'transparent',
+        respectReducedMotion: this.readBool('respect-reduced-motion', true),
         colors: colorsAttr
           ? colorsAttr.split(',').map(v => v.trim()).filter(Boolean)
           : ['#7dd3fc', '#a78bfa', '#f9a8d4', '#fcd34d', '#5eead4']
@@ -91,6 +93,26 @@
         this._engine.destroy();
       }
       this._engine = window.MargaParticles.mount(this._mount, this.readOptions());
+      this.dispatchEvent(new CustomEvent('margaparticles-ready', {
+        bubbles: true,
+        detail: { engine: this._engine, version: window.MargaParticles.version }
+      }));
+    }
+
+    pause() {
+      if (this._engine) this._engine.pause();
+    }
+
+    resume() {
+      if (this._engine) this._engine.resume();
+    }
+
+    update(options) {
+      if (this._engine) this._engine.update(options);
+    }
+
+    get engine() {
+      return this._engine;
     }
   }
 
